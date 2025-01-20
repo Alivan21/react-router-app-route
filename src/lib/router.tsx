@@ -182,7 +182,7 @@ export function getRouteSegmentsFromFilePath(
   const segments = filePath
     .replace("/pages", "")
     .split("/")
-    .filter((segment) => !segment.startsWith("(index)"))
+    .filter((segment) => !segment.startsWith("(index)") && !segment.startsWith("_"))
     .map((segment) => {
       if (segment.startsWith(".")) return "/";
       if (segment.startsWith("("))
