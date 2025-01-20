@@ -7,17 +7,28 @@ interface PageModuleExports {
   action?: ActionFunction;
 }
 
+interface LoadingModuleExports {
+  default: () => JSX.Element;
+}
+
 type PageModule = () => Promise<PageModuleExports>;
 
 const separator = "\\";
 
-export function convertPagesToRoute(files: Record<string, () => Promise<unknown>>): RouteObject {
+export function convertPagesToRoute(
+  files: Record<string, () => Promise<unknown>>,
+  loadingFiles: Record<string, () => Promise<unknown>> = {}
+): RouteObject {
   let routes: RouteObject = { path: "/" };
   Object.entries(files).forEach(([filePath, importer]) => {
     const segments = getRouteSegmentsFromFilePath(filePath);
     const page = lazy(importer as PageModule);
+    // Find matching loading component for this route
+    const loadingComponent = findMatchingLoadingComponent(filePath, loadingFiles);
+
     const route = createRoute({
       PageComponent: page,
+      LoadingComponent: loadingComponent,
       segments,
       async action(args) {
         const result = (await importer()) as PageModuleExports;
@@ -33,44 +44,62 @@ export function convertPagesToRoute(files: Record<string, () => Promise<unknown>
   return routes;
 }
 
+function findMatchingLoadingComponent(
+  filePath: string,
+  loadingFiles: Record<string, () => Promise<unknown>>
+) {
+  // First try local loading file
+  const loadingPath = filePath.replace(/(page|layout)\.tsx$/, "loading.tsx");
+
+  // Then try group folder loading file (e.g., (auth/loading.tsx))
+  const groupMatch = filePath.match(/\([^/]+\//);
+  const groupLoadingPath = groupMatch ? `/${groupMatch[0]}loading.tsx` : null;
+
+  // Finally try global loading file
+  const globalLoadingPath = "./pages/loading.tsx";
+
+  // Try to find loader in order: local -> group -> global
+  const loader =
+    loadingFiles[loadingPath] ||
+    (groupLoadingPath && loadingFiles[groupLoadingPath]) ||
+    loadingFiles[globalLoadingPath];
+
+  if (!loader) return undefined;
+
+  return lazy(loader as () => Promise<LoadingModuleExports>);
+}
+
 function mergeRoutes(target: RouteObject, source: RouteObject) {
   if (target.path !== source.path)
     throw new Error(`Paths do not match: "${target.path}" and "${source.path}"`);
 
-  // if source is a layout and target is a page
-  if (target.handle?.pageType === "page" && source.handle?.pageType === "layout") {
-    target = swapTargetRouteAsIndexRouteAndUpdateWithRoute(target, source);
+  // Prioritize layouts by handling them first
+  if (source.handle?.pageType === "layout") {
+    if (!target.element) {
+      // If target doesn't have an element, apply the layout
+      target.element = source.element;
+      target.HydrateFallback = source.HydrateFallback;
+      target.action = source.action;
+      target.loader = source.loader;
+      target.handle = source.handle;
+      target.errorElement = source.errorElement;
+      target.children = target.children ?? [];
+    } else if (target.handle?.pageType === "page") {
+      // If target is a page, make it an index route under the layout
+      target = swapTargetRouteAsIndexRouteAndUpdateWithRoute(target, source);
+    }
+    return target;
   }
 
-  // if source is a page and target is a layout
+  // Handle other cases...
   if (target.handle?.pageType === "layout" && source.handle?.pageType === "page") {
     target = addRouteAsIndexRouteForTargetRoute(target, source);
     return target;
   }
 
-  // if source is a page and target is pathless
-  if (source.handle?.pageType === "page" && !target.element && target.children) {
-    target = addRouteAsIndexRouteForTargetRoute(target, source);
-    return target;
-  }
-
-  // if source is a layout and target is pathless
-  if (source.handle?.pageType === "layout" && !target.element && target.children) {
-    target.element = source.element;
-    target.action = source.action;
-    target.loader = source.loader;
-    target.handle = source.handle;
-    target.errorElement = source.errorElement;
-  }
-
-  // if target is a page and source is pathless
-  if (target.handle?.pageType === "page" && !source.element && source.children) {
-    target = swapTargetRouteAsIndexRouteAndUpdateWithRoute(target, source);
-  }
-
+  // Rest of the existing mergeRoutes logic...
   if (source.children) {
     target.children = target.children ?? [];
-
     source.children.forEach((sourceChild) => {
       const matchingChild = target.children?.find(
         (targetChild) => targetChild.path === sourceChild.path
@@ -88,6 +117,7 @@ function swapTargetRouteAsIndexRouteAndUpdateWithRoute(target: RouteObject, rout
   target.children.push({
     index: true,
     element: target.element,
+    HydrateFallback: target.HydrateFallback,
     action: target.action,
     loader: target.loader,
     handle: target.handle,
@@ -95,6 +125,7 @@ function swapTargetRouteAsIndexRouteAndUpdateWithRoute(target: RouteObject, rout
   });
 
   target.element = route.element;
+  target.HydrateFallback = route.HydrateFallback;
   target.action = route.action;
   target.loader = route.loader;
   target.handle = route.handle;
@@ -108,6 +139,7 @@ function addRouteAsIndexRouteForTargetRoute(target: RouteObject, route: RouteObj
   target.children.push({
     index: true,
     element: route.element,
+    HydrateFallback: route.HydrateFallback,
     action: route.action,
     loader: route.loader,
     handle: route.handle,
@@ -119,18 +151,23 @@ function addRouteAsIndexRouteForTargetRoute(target: RouteObject, route: RouteObj
 function createRoute(args: {
   segments: string[];
   PageComponent: LazyExoticComponent<() => JSX.Element>;
+  LoadingComponent?: LazyExoticComponent<() => JSX.Element>;
   loader?: LoaderFunction;
   action?: ActionFunction;
 }): RouteObject {
   const [current, ...rest] = args.segments;
   const [cleanPath, pageType] = current.split(separator);
   const route: RouteObject = { path: cleanPath };
-  if (current.includes(separator)) {
+
+  // Always attach loading state for layouts
+  if (current.includes(separator) || pageType === "layout") {
     route.element = <args.PageComponent />;
+    route.HydrateFallback = args.LoadingComponent ?? (() => <div>Loading...</div>);
     route.action = args.action;
     route.loader = args.loader;
     route.handle = { pageType };
   }
+
   if (pageType === "layout") route.children = [];
   if (rest.length > 0) route.children = [createRoute({ ...args, segments: rest })];
 
@@ -145,12 +182,15 @@ export function getRouteSegmentsFromFilePath(
   const segments = filePath
     .replace("/pages", "")
     .split("/")
+    .filter((segment) => !segment.startsWith("(index)"))
     .map((segment) => {
       if (segment.startsWith(".")) return "/";
-      if (segment.startsWith("-")) return getParamFromSegment(segment).replace("-", "") + "?";
+      if (segment.startsWith("("))
+        return getParamFromSegment(segment).replace("(", "").replace(")", "") + "?";
       if (segment.startsWith("[")) return getParamFromSegment(segment);
       return segment;
     });
+
   return getRouteSegments(segments[0], segments, transformer);
 }
 

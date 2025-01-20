@@ -1,7 +1,7 @@
 import { useState } from "react";
 import "./App.css";
 
-export default function App() {
+export default function IndexPage() {
   const [count, setCount] = useState(0);
 
   return (
