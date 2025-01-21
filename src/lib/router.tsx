@@ -15,6 +15,12 @@ type PageModule = () => Promise<PageModuleExports>;
 
 const separator = "\\";
 
+/**
+ * Converts page files into a React Router route configuration.
+ * @param files - Record of file paths and their corresponding import functions
+ * @param loadingFiles - Optional record of loading component files
+ * @returns A RouteObject representing the complete routing configuration
+ */
 export function convertPagesToRoute(
   files: Record<string, () => Promise<unknown>>,
   loadingFiles: Record<string, () => Promise<unknown>> = {}
@@ -44,6 +50,13 @@ export function convertPagesToRoute(
   return routes;
 }
 
+/**
+ * Finds the appropriate loading component for a given route path.
+ * Follows a hierarchical search order:
+ * 1. Local loading file (same directory as the page)
+ * 2. Group folder loading file (e.g., (auth/loading.tsx))
+ * 3. Global loading file
+ */
 function findMatchingLoadingComponent(
   filePath: string,
   loadingFiles: Record<string, () => Promise<unknown>>
@@ -69,6 +82,13 @@ function findMatchingLoadingComponent(
   return lazy(loader as () => Promise<LoadingModuleExports>);
 }
 
+/**
+ * Merges two route configurations, handling special cases for layouts and pages.
+ * Priority rules:
+ * 1. Layouts take precedence and are processed first
+ * 2. Pages can become index routes under layouts
+ * 3. Maintains existing route hierarchy while merging
+ */
 function mergeRoutes(target: RouteObject, source: RouteObject) {
   if (target.path !== source.path)
     throw new Error(`Paths do not match: "${target.path}" and "${source.path}"`);
@@ -112,6 +132,10 @@ function mergeRoutes(target: RouteObject, source: RouteObject) {
   return target;
 }
 
+/**
+ * Takes a page route and converts it into an index route under a layout route.
+ * Preserves all route properties while restructuring the hierarchy.
+ */
 function swapTargetRouteAsIndexRouteAndUpdateWithRoute(target: RouteObject, route: RouteObject) {
   target.children = target.children ?? [];
   target.children.push({
@@ -134,6 +158,10 @@ function swapTargetRouteAsIndexRouteAndUpdateWithRoute(target: RouteObject, rout
   return target;
 }
 
+/**
+ * Adds a route as an index route under a target layout route.
+ * Used when a page needs to be nested under an existing layout.
+ */
 function addRouteAsIndexRouteForTargetRoute(target: RouteObject, route: RouteObject) {
   target.children = target.children ?? [];
   target.children.push({
@@ -148,6 +176,12 @@ function addRouteAsIndexRouteForTargetRoute(target: RouteObject, route: RouteObj
   return target;
 }
 
+/**
+ * Creates a new route configuration based on path segments and components.
+ * Handles both page and layout routes differently:
+ * - Layouts: Always include loading states and can have children
+ * - Pages: Can be terminal routes or have nested structures
+ */
 function createRoute(args: {
   segments: string[];
   PageComponent: LazyExoticComponent<() => JSX.Element>;
@@ -174,6 +208,14 @@ function createRoute(args: {
   return route;
 }
 
+/**
+ * Converts a file path into route segments.
+ * Handles special cases:
+ * - Dynamic parameters: [param] → :param
+ * - Optional parameters: (param) → param?
+ * - Catch-all routes: [...param] → *
+ * - Ignores _files and (index) files
+ */
 export function getRouteSegmentsFromFilePath(
   filePath: string,
   transformer = (segment: string, prevSegment: string) =>
@@ -198,6 +240,12 @@ function getFileNameWithoutExtension(file: string) {
   return file.split(".")[0];
 }
 
+/**
+ * Adds 404 (Not Found) pages to route children.
+ * Handles two cases:
+ * 1. Routes with existing children: Adds 404 as a catch-all route
+ * 2. Routes without children: Converts current route to index and adds 404 as sibling
+ */
 function getRouteSegments(
   segment: string,
   segments: string[],
@@ -216,11 +264,19 @@ function getRouteSegments(
   return getRouteSegments(segments[nextIndex], segments, transformer, entries, nextIndex);
 }
 
+/**
+ * Recursively traverses and updates routes based on segment paths.
+ * Used for adding error boundaries and 404 pages to specific routes.
+ */
 function getParamFromSegment(segment: string) {
   if (segment.includes("...")) return "*";
   return segment.replace("[", ":").replace("]", "");
 }
 
+/**
+ * Adds error boundaries to routes based on error component files.
+ * Maps error components to their corresponding route segments.
+ */
 export function addErrorElementToRoutes(
   errorFiles: Record<string, () => Promise<unknown>>,
   routes: RouteObject
@@ -235,6 +291,12 @@ export function addErrorElementToRoutes(
   });
 }
 
+/**
+ * Adds 404 (Not Found) pages to route children.
+ * Handles two cases:
+ * 1. Routes with existing children: Adds 404 as a catch-all route
+ * 2. Routes without children: Converts current route to index and adds 404 as sibling
+ */
 export function add404PageToRoutesChildren(
   notFoundFiles: Record<string, () => Promise<unknown>>,
   routes: RouteObject
@@ -268,6 +330,10 @@ export function add404PageToRoutesChildren(
   });
 }
 
+/**
+ * Recursively traverses and updates routes based on segment paths.
+ * Used for adding error boundaries and 404 pages to specific routes.
+ */
 function setRoute(
   segments: string[],
   route: RouteObject,
