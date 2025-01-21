@@ -44,7 +44,6 @@ export default tseslint.config(
       ...tsPlugin.configs["recommended-requiring-type-checking"].rules,
       ...importPlugin.configs.typescript.rules,
       "react-refresh/only-export-components": ["off"],
-      "react/jsx-no-leaked-render": ["error", { validStrategies: ["coerce", "ternary"] }],
       "react/jsx-no-useless-fragment": "warn",
       "react/jsx-curly-brace-presence": "warn",
       "react/display-name": "warn",
