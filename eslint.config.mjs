@@ -54,16 +54,6 @@ export default tseslint.config(
       "react/prop-types": "off",
       "jsx-a11y/anchor-is-valid": "off",
       "@typescript-eslint/no-unused-vars": "warn",
-      "import/order": [
-        "warn",
-        {
-          groups: ["builtin", "external", "internal", "parent", "sibling", "index"],
-          alphabetize: {
-            order: "asc",
-            caseInsensitive: true,
-          },
-        },
-      ],
     },
     settings: {
       react: {

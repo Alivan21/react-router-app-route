@@ -12,9 +12,16 @@
     /* Bundler mode */
     "moduleResolution": "bundler",
     "isolatedModules": true,
+    "allowImportingTsExtensions": true,
     "moduleDetection": "force",
-    "noEmit": false,
+    "noEmit": true,
     "jsx": "react-jsx",
+
+    /* Path Aliases */
+    "baseUrl": ".",
+    "paths": {
+      "~/*": ["./src/*"]
+    },
 
     /* Linting */
     "strict": true,
