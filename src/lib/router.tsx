@@ -1,14 +1,41 @@
 import { lazy, LazyExoticComponent } from "react";
 import { ActionFunction, LoaderFunction, RouteObject } from "react-router";
 
+/**
+ * Represents the expected structure of a page module's exports.
+ * @interface PageModuleExports
+ * @property {Function} default - The main component to render
+ * @property {LoaderFunction} [loader] - Optional data loader function
+ * @property {ActionFunction} [action] - Optional form action handler
+ */
 interface PageModuleExports {
   default: () => JSX.Element;
   loader?: LoaderFunction;
   action?: ActionFunction;
 }
 
+/**
+ * Represents the structure of a loading component's exports.
+ * @interface LoadingModuleExports
+ * @property {Function} default - The loading component to render
+ */
 interface LoadingModuleExports {
   default: () => JSX.Element;
+}
+
+/**
+ * Defines the type of page in the routing system.
+ * @interface RouteHandle
+ * @property {'page' | 'layout'} pageType - Indicates whether the route is a regular page or a layout wrapper
+ */
+interface RouteHandle {
+  pageType: "page" | "layout";
+}
+
+interface ExtendedRouteObject extends Omit<RouteObject, "handle" | "children"> {
+  handle?: RouteHandle;
+  children?: ExtendedRouteObject[];
+  HydrateFallback?: React.ComponentType;
 }
 
 type PageModule = () => Promise<PageModuleExports>;
@@ -16,16 +43,25 @@ type PageModule = () => Promise<PageModuleExports>;
 const separator = "\\";
 
 /**
- * Converts page files into a React Router route configuration.
- * @param files - Record of file paths and their corresponding import functions
- * @param loadingFiles - Optional record of loading component files
- * @returns A RouteObject representing the complete routing configuration
+ * Converts file-system based pages into React Router compatible routes.
+ * Supports file-system based routing similar to Next.js, where directory structure
+ * determines the routing hierarchy.
+ *
+ * Features:
+ * - Automatic route generation from file structure
+ * - Support for layouts and nested routes
+ * - Loading state handling
+ * - Dynamic route parameters
+ *
+ * @param files - Object mapping file paths to their dynamic import functions
+ * @param loadingFiles - Object mapping loading component paths to their import functions
+ * @returns A complete route configuration object for React Router
  */
 export function convertPagesToRoute(
   files: Record<string, () => Promise<unknown>>,
   loadingFiles: Record<string, () => Promise<unknown>> = {}
-): RouteObject {
-  let routes: RouteObject = { path: "/" };
+): ExtendedRouteObject {
+  let routes: ExtendedRouteObject = { path: "/" };
   Object.entries(files).forEach(([filePath, importer]) => {
     const segments = getRouteSegmentsFromFilePath(filePath);
     const page = lazy(importer as PageModule);
@@ -51,11 +87,16 @@ export function convertPagesToRoute(
 }
 
 /**
- * Finds the appropriate loading component for a given route path.
- * Follows a hierarchical search order:
- * 1. Local loading file (same directory as the page)
- * 2. Group folder loading file (e.g., (auth/loading.tsx))
- * 3. Global loading file
+ * Determines the appropriate loading component for a route based on a hierarchical fallback system.
+ *
+ * Loading Component Resolution Order:
+ * 1. Local: Checks for loading.tsx in the same directory as the page
+ * 2. Group: Looks for loading.tsx in the nearest group directory (e.g., (auth)/loading.tsx)
+ * 3. Global: Falls back to the root loading.tsx if no other loading components are found
+ *
+ * @param filePath - The path of the current page file
+ * @param loadingFiles - Object containing all available loading components
+ * @returns The resolved loading component or undefined if none found
  */
 function findMatchingLoadingComponent(
   filePath: string,
@@ -83,20 +124,29 @@ function findMatchingLoadingComponent(
 }
 
 /**
- * Merges two route configurations, handling special cases for layouts and pages.
- * Priority rules:
- * 1. Layouts take precedence and are processed first
- * 2. Pages can become index routes under layouts
- * 3. Maintains existing route hierarchy while merging
+ * Merges two route configurations while maintaining proper hierarchy and handling special cases.
+ *
+ * Rules:
+ * 1. Layout routes take precedence over page routes
+ * 2. Page routes can become index routes under layouts
+ * 3. Preserves existing route hierarchy during merging
+ * 4. Handles conflicts between layouts and pages
+ *
+ * @param target - The base route configuration to merge into
+ * @param source - The new route configuration to merge
+ * @returns The merged route configuration
+ * @throws Error if paths don't match between target and source
  */
-function mergeRoutes(target: RouteObject, source: RouteObject) {
+function mergeRoutes(
+  target: ExtendedRouteObject,
+  source: ExtendedRouteObject
+): ExtendedRouteObject {
   if (target.path !== source.path)
     throw new Error(`Paths do not match: "${target.path}" and "${source.path}"`);
 
   // Prioritize layouts by handling them first
   if (source.handle?.pageType === "layout") {
     if (!target.element) {
-      // If target doesn't have an element, apply the layout
       target.element = source.element;
       target.HydrateFallback = source.HydrateFallback;
       target.action = source.action;
@@ -105,7 +155,6 @@ function mergeRoutes(target: RouteObject, source: RouteObject) {
       target.errorElement = source.errorElement;
       target.children = target.children ?? [];
     } else if (target.handle?.pageType === "page") {
-      // If target is a page, make it an index route under the layout
       target = swapTargetRouteAsIndexRouteAndUpdateWithRoute(target, source);
     }
     return target;
@@ -136,7 +185,10 @@ function mergeRoutes(target: RouteObject, source: RouteObject) {
  * Takes a page route and converts it into an index route under a layout route.
  * Preserves all route properties while restructuring the hierarchy.
  */
-function swapTargetRouteAsIndexRouteAndUpdateWithRoute(target: RouteObject, route: RouteObject) {
+function swapTargetRouteAsIndexRouteAndUpdateWithRoute(
+  target: ExtendedRouteObject,
+  route: ExtendedRouteObject
+): ExtendedRouteObject {
   target.children = target.children ?? [];
   target.children.push({
     index: true,
@@ -162,7 +214,10 @@ function swapTargetRouteAsIndexRouteAndUpdateWithRoute(target: RouteObject, rout
  * Adds a route as an index route under a target layout route.
  * Used when a page needs to be nested under an existing layout.
  */
-function addRouteAsIndexRouteForTargetRoute(target: RouteObject, route: RouteObject) {
+function addRouteAsIndexRouteForTargetRoute(
+  target: ExtendedRouteObject,
+  route: ExtendedRouteObject
+): ExtendedRouteObject {
   target.children = target.children ?? [];
   target.children.push({
     index: true,
@@ -188,10 +243,11 @@ function createRoute(args: {
   LoadingComponent?: LazyExoticComponent<() => JSX.Element>;
   loader?: LoaderFunction;
   action?: ActionFunction;
-}): RouteObject {
+}): ExtendedRouteObject {
+  // Changed return type from RouteObjectWithChildren
   const [current, ...rest] = args.segments;
   const [cleanPath, pageType] = current.split(separator);
-  const route: RouteObject = { path: cleanPath };
+  const route: ExtendedRouteObject = { path: cleanPath };
 
   // Always attach loading state for layouts
   if (current.includes(separator) || pageType === "layout") {
@@ -199,22 +255,31 @@ function createRoute(args: {
     route.HydrateFallback = args.LoadingComponent ?? (() => <div>Loading...</div>);
     route.action = args.action;
     route.loader = args.loader;
-    route.handle = { pageType };
+    route.handle = { pageType: pageType as "layout" | "page" };
   }
 
   if (pageType === "layout") route.children = [];
-  if (rest.length > 0) route.children = [createRoute({ ...args, segments: rest })];
+  if (rest.length > 0) {
+    const childRoute = createRoute({ ...args, segments: rest });
+    route.children = [childRoute] as ExtendedRouteObject[];
+  }
 
   return route;
 }
 
 /**
- * Converts a file path into route segments.
- * Handles special cases:
- * - Dynamic parameters: [param] → :param
- * - Optional parameters: (param) → param?
- * - Catch-all routes: [...param] → *
- * - Ignores _files and (index) files
+ * Processes a file path to generate route segments, handling various routing patterns.
+ *
+ * Supports:
+ * - Static routes: /about → /about
+ * - Dynamic parameters: [id] → :id
+ * - Optional parameters: (auth) → auth?
+ * - Catch-all routes: [...wildcard] → *
+ * - Special directories: Ignores _files and (index) files
+ *
+ * @param filePath - The file path to process
+ * @param transformer - Optional function to transform segment names
+ * @returns Array of processed route segments
  */
 export function getRouteSegmentsFromFilePath(
   filePath: string,

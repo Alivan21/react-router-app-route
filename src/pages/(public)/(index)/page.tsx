@@ -13,7 +13,7 @@ export default function IndexPage() {
   return (
     <>
       <h1>Vite + React</h1>
-      <img src="vite.svg" alt="testing" />
+      <img alt="testing" src="vite.svg" />
       <div className="card">
         <button onClick={() => setCount((count) => count + 1)}>count is {count}</button>
         <p>
