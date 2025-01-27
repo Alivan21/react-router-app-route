@@ -2,9 +2,9 @@ import { Outlet } from "react-router";
 
 export default function PublicLayout() {
   return (
-    <div>
+    <main>
       PublicLayout
       <Outlet />
-    </div>
+    </main>
   );
 }
