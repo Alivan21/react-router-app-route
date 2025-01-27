@@ -9,11 +9,16 @@ import reactHooks from "eslint-plugin-react-hooks";
 import reactRefresh from "eslint-plugin-react-refresh";
 import globals from "globals";
 import tseslint from "typescript-eslint";
+import pluginQuery from "@tanstack/eslint-plugin-query";
 
 export default tseslint.config(
   { ignores: ["dist", "node_modules/*", "!.prettierrc", "!.eslintrc"] },
   {
-    extends: [pluginJs.configs.recommended, ...tseslint.configs.recommended],
+    extends: [
+      pluginJs.configs.recommended,
+      ...tseslint.configs.recommended,
+      ...pluginQuery.configs["flat/recommended"],
+    ],
     languageOptions: {
       ecmaVersion: 2020,
       globals: globals.browser,
@@ -43,7 +48,7 @@ export default tseslint.config(
       ...tsPlugin.configs["recommended"].rules,
       ...tsPlugin.configs["recommended-requiring-type-checking"].rules,
       ...importPlugin.configs.typescript.rules,
-      "react-refresh/only-export-components": "warn",
+      "react-refresh/only-export-components": "off",
       "react/jsx-no-useless-fragment": "warn",
       "react/jsx-curly-brace-presence": "warn",
       "react/display-name": "warn",
