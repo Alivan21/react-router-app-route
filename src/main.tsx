@@ -1,12 +1,14 @@
 import { StrictMode } from "react";
+import AuthProvider from "react-auth-kit";
 import { createRoot } from "react-dom/client";
 import { RouteObject, RouterProvider, createBrowserRouter } from "react-router";
-import ReactQueryProvider from "./lib/react-query/query-client-provider";
+import { authStore } from "./libs/react-auth/auth-store";
+import ReactQueryProvider from "./libs/react-query/query-client-provider";
 import {
   add404PageToRoutesChildren,
   addErrorElementToRoutes,
   convertPagesToRoute,
-} from "@/lib/react-router/router";
+} from "@/libs/react-router/file-router";
 import "./index.css";
 
 const files = import.meta.glob("./pages/**/*(page|layout).tsx");
@@ -23,7 +25,9 @@ const router = createBrowserRouter([routes]);
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <ReactQueryProvider>
-      <RouterProvider router={router} />
+      <AuthProvider store={authStore}>
+        <RouterProvider router={router} />
+      </AuthProvider>
     </ReactQueryProvider>
   </StrictMode>
 );
