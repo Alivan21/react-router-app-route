@@ -1,12 +1,12 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
-import { createBrowserRouter, RouteObject, RouterProvider } from "react-router";
-import "./index.css";
+import { RouteObject, RouterProvider, createBrowserRouter } from "react-router";
 import {
   add404PageToRoutesChildren,
   addErrorElementToRoutes,
   convertPagesToRoute,
-} from "./lib/router.tsx";
+} from "@/lib/router.tsx";
+import "./index.css";
 
 const files = import.meta.glob("./pages/**/*(page|layout).tsx");
 const errorFiles = import.meta.glob("./pages/**/*error.tsx");

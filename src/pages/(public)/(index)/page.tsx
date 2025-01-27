@@ -1,18 +1,17 @@
 import { useState } from "react";
-import "./App.css";
 
-export async function loader() {
-  // Simulate a slow network request
-  await new Promise((resolve) => setTimeout(resolve, 2000));
-  return null;
-}
+// export async function loader() {
+//   // Simulate a slow network request
+//   await new Promise((resolve) => setTimeout(resolve, 2000));
+//   return null;
+// }
 
 export default function IndexPage() {
   const [count, setCount] = useState(0);
 
   return (
     <>
-      <h1>Vite + React</h1>
+      <h1 className="font-bold text-3xl">Vite + React</h1>
       <img alt="testing" src="vite.svg" />
       <div className="card">
         <button onClick={() => setCount((count) => count + 1)}>count is {count}</button>

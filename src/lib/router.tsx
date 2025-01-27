@@ -356,6 +356,18 @@ export function addErrorElementToRoutes(
   });
 }
 
+function set404NonPage(routes: RouteObject, pathname?: string) {
+  let path = routes.path;
+  if (routes.path && routes.children?.length && !routes.path.includes("?")) {
+    routes.path = undefined;
+    path = pathname ? pathname + "/" + path : path;
+  }
+  if (routes.path && !routes.children?.length) {
+    routes.path = pathname + "/" + routes.path;
+  }
+  routes.children?.map((route) => set404NonPage(route, path));
+}
+
 /**
  * Adds 404 (Not Found) pages to route children.
  * Handles two cases:
@@ -392,6 +404,7 @@ export function add404PageToRoutesChildren(
       }
       return route;
     });
+    set404NonPage(routes);
   });
 }
 

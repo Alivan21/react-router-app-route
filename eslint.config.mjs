@@ -43,7 +43,7 @@ export default tseslint.config(
       ...tsPlugin.configs["recommended"].rules,
       ...tsPlugin.configs["recommended-requiring-type-checking"].rules,
       ...importPlugin.configs.typescript.rules,
-      "react-refresh/only-export-components": ["off"],
+      "react-refresh/only-export-components": "warn",
       "react/jsx-no-useless-fragment": "warn",
       "react/jsx-curly-brace-presence": "warn",
       "react/display-name": "warn",
@@ -54,6 +54,30 @@ export default tseslint.config(
       "react/prop-types": "off",
       "jsx-a11y/anchor-is-valid": "off",
       "@typescript-eslint/no-unused-vars": "warn",
+      "import/order": [
+        "warn",
+        {
+          groups: [
+            "builtin", // Built-in Node.js modules
+            "external", // Third-party modules
+            "internal", // Your aliases (@/*)
+            "object", // Object imports
+            "type", // Type imports
+            "index", // Index imports
+            "parent", // Imports from parent directories
+            "sibling", // Imports from the same directory
+          ],
+          alphabetize: {
+            order: "asc",
+            caseInsensitive: true,
+          },
+        },
+      ],
+      "sort-imports": "off",
+      "import/first": "off",
+      "import/newline-after-import": "off",
+      "import/no-duplicates": "off",
+      "import/no-unresolved": "off",
     },
     settings: {
       react: {
