@@ -144,6 +144,11 @@ function mergeRoutes(
   if (target.path !== source.path)
     throw new Error(`Paths do not match: "${target.path}" and "${source.path}"`);
 
+  // If target doesn't have children yet, initialize it
+  if (!target.children) {
+    target.children = [];
+  }
+
   // Prioritize layouts by handling them first
   if (source.handle?.pageType === "layout") {
     if (!target.element) {
@@ -157,6 +162,19 @@ function mergeRoutes(
     } else if (target.handle?.pageType === "page") {
       target = swapTargetRouteAsIndexRouteAndUpdateWithRoute(target, source);
     }
+    return target;
+  }
+
+  // If this is a page route and we don't have an index route yet, add it
+  if (source.handle?.pageType === "page" && !target.children.some((child) => child.index)) {
+    target.children.unshift({
+      index: true,
+      element: source.element,
+      HydrateFallback: source.HydrateFallback,
+      action: source.action,
+      loader: source.loader,
+      handle: source.handle,
+    });
     return target;
   }
 
@@ -356,18 +374,6 @@ export function addErrorElementToRoutes(
   });
 }
 
-function set404NonPage(routes: RouteObject, pathname?: string) {
-  let path = routes.path;
-  if (routes.path && routes.children?.length && !routes.path.includes("?")) {
-    routes.path = undefined;
-    path = pathname ? pathname + "/" + path : path;
-  }
-  if (routes.path && !routes.children?.length) {
-    routes.path = pathname + "/" + routes.path;
-  }
-  routes.children?.map((route) => set404NonPage(route, path));
-}
-
 /**
  * Adds 404 (Not Found) pages to route children.
  * Handles two cases:
@@ -383,18 +389,22 @@ export function add404PageToRoutesChildren(
     const NotFound = lazy(importer as () => Promise<{ default: () => JSX.Element }>);
     setRoute(segments, routes, (route) => {
       // add not found route if there is are children
-      if (route.children) route.children.push({ path: "*", element: <NotFound /> });
-      else {
+      if (route.children) {
+        set404NonPage(routes, <NotFound />);
+        route.children.push({ path: "*", element: <NotFound /> });
+      } else {
         // if there are no children, then add children to the route and move the current route to the
         // children as the index route and add the not found page
         const tempRoute = Object.assign({}, route);
         route.children = route.children ?? [];
+        // Only add NotFoundPage for non-root routes that don't have an index
         route.children.push({
           index: true,
           element: tempRoute.element,
           action: tempRoute.action,
           loader: tempRoute.loader,
         });
+
         route.children.push({ path: "*", element: <NotFound /> });
 
         // delete or remove the matched route element, action & loader to make it a pathless route
@@ -404,8 +414,23 @@ export function add404PageToRoutesChildren(
       }
       return route;
     });
-    set404NonPage(routes);
   });
+}
+
+function set404NonPage(routes: RouteObject, notFoundElement: JSX.Element) {
+  if (
+    routes.path &&
+    routes.children?.length &&
+    !routes.path.includes("?") &&
+    !routes.path.includes("/") &&
+    !routes.children.some((child) => child.index)
+  ) {
+    routes.children.push({
+      index: true,
+      element: notFoundElement,
+    });
+  }
+  routes.children?.forEach((route) => set404NonPage(route, notFoundElement));
 }
 
 /**
