@@ -262,24 +262,48 @@ function createRoute(args: {
   loader?: LoaderFunction;
   action?: ActionFunction;
 }): ExtendedRouteObject {
-  // Changed return type from RouteObjectWithChildren
   const [current, ...rest] = args.segments;
   const [cleanPath, pageType] = current.split(separator);
   const route: ExtendedRouteObject = { path: cleanPath };
 
-  // Always attach loading state for layouts
-  if (current.includes(separator) || pageType === "layout") {
+  // Set up the route element and properties
+  if (pageType === "page" || pageType === "layout") {
     route.element = <args.PageComponent />;
     route.HydrateFallback = args.LoadingComponent ?? (() => <div>Loading...</div>);
     route.action = args.action;
     route.loader = args.loader;
-    route.handle = { pageType: pageType as "layout" | "page" };
+    route.handle = { pageType: pageType };
   }
 
-  if (pageType === "layout") route.children = [];
+  // Handle nested routes
   if (rest.length > 0) {
+    const nextSegment = rest[0].split(separator)[0];
+
+    // If the next segment is "update" or similar, make it a sibling route
+    if (nextSegment === "update" || nextSegment === "edit") {
+      return {
+        path: `${cleanPath}/${nextSegment}`,
+        element: <args.PageComponent />,
+        HydrateFallback: args.LoadingComponent ?? (() => <div>Loading...</div>),
+        action: args.action,
+        loader: args.loader,
+        handle: { pageType: pageType as "layout" | "page" },
+      };
+    }
+
+    // Otherwise, handle as nested route
     const childRoute = createRoute({ ...args, segments: rest });
-    route.children = [childRoute] as ExtendedRouteObject[];
+
+    if (!route.children) {
+      route.children = [];
+    }
+
+    // For dynamic parameter routes ([id]), ensure more specific routes come first
+    if (cleanPath.startsWith(":")) {
+      route.children.unshift(childRoute);
+    } else {
+      route.children.push(childRoute);
+    }
   }
 
   return route;
